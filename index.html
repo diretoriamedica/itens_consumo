@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Movimentacao Estoque - Rede Hospital Casa</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;font-size:13px}
+.hdr{background:linear-gradient(135deg,#1a5276,#2980b9);color:#fff;padding:18px 30px}
+.hdr h1{font-size:20px}.hdr .sub{font-size:12px;opacity:.8;margin-top:3px}
+.tabs{display:flex;background:#1a5276;padding:0 30px}
+.tab{padding:11px 26px;color:rgba(255,255,255,.65);cursor:pointer;font-size:13px;font-weight:600;border-bottom:3px solid transparent;transition:.2s}
+.tab:hover{color:#fff}.tab.active{color:#fff;border-bottom-color:#f39c12;background:rgba(255,255,255,.07)}
+.tc{display:none}.tc.active{display:block}
+.flt{background:#fff;padding:14px 28px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #ddd}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.5px}
+.fg select,.fg input{padding:7px 10px;border:1px solid #ccc;border-radius:5px;font-size:12px;min-width:170px;background:#fff}
+.fgw{flex:1;min-width:200px}.fgw input{width:100%}
+.btn{padding:9px 22px;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;align-self:flex-end}
+.btn:hover{background:#1a5276}
+.d{padding:18px 28px}
+.kr{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+.kp{background:#fff;border-radius:9px;padding:15px;box-shadow:0 1px 5px rgba(0,0,0,.07);text-align:center}
+.kp .kl{font-size:10px;color:#999;text-transform:uppercase;font-weight:700}
+.kp .kv{font-size:22px;font-weight:700;margin-top:4px}
+.ct{width:100%;max-height:600px;position:relative}
+.t{border-collapse:collapse;width:100%;background:#fff;font-size:12px}
+.t th{background:#f5f5f5;padding:8px;text-align:left;font-weight:600;border-bottom:1px solid #ddd}
+.t td{padding:7px 8px;border-bottom:1px solid #eee}
+.t tr:hover{background:#fafafa}
+.t .r{text-align:right}
+.tg{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600}
+.tg.e{background:#d4edda;color:#155724}
+.tg.s{background:#cfe2ff;color:#084298}
+.tg.a{background:#fff3cd;color:#856404}
+.tg.m{background:#e2e3e5;color:#41464b}
+.chk{margin-bottom:20px}
+.chk h3{font-size:14px;margin-bottom:10px;border-bottom:1px solid #ddd;padding-bottom:8px}
+.chk-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px}
+.chk-item{flex:0 0 auto}
+.chk-item input{margin-right:5px}
+.chk-item label{cursor:pointer;user-select:none}
+.nd{text-align:center;padding:30px;color:#999;font-style:italic}
+.ldr{display:flex;align-items:center;gap:10px;font-size:13px}
+.ldr::before{content:'';display:inline-block;width:16px;height:16px;border:2px solid #2980b9;border-top:2px solid transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="hdr">
+<h1>Dashboard Movimentacao Estoque</h1>
+<div class="sub">Rede Hospital Casa</div>
+</div>
+<div class="tabs">
+<div class="tab active" data-tab="0">Overview</div>
+<div class="tab" data-tab="1">Top Items</div>
+<div class="tab" data-tab="2">Item Detail</div>
+<div class="tab" data-tab="3">Loans</div>
+</div>
+<div class="tc active" id="tc0"></div>
+<div class="tc" id="tc1"></div>
+<div class="tc" id="tc2"></div>
+<div class="tc" id="tc3"></div>
+<script>
+const SUPABASE_URL = "https://hoogebyhejbrfskwsket.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhvb2dlYnloZWpicmZza3dza2V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NDUyMDUsImV4cCI6MjA5MTQyMTIwNX0.EcuN5MP_zsGYJjRkC4xqILR1DkY3H7q01EGPRxWvPAQ";
+let unidade = '', ano = '', mes = '';
+const fetchAPI = async (funcName, params = {}) => {
+  let qs = new URLSearchParams(params).toString();
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${funcName}?${qs}`;
+  const response = await fetch(url, {
+    headers: {"Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json"}
+  });
+  if (!response.ok) throw new Error(`${response.status}`);
+  return await response.json();
+};
+const fmt = (v, type = 'n') => {
+  if (v == null) return '-';
+  if (type === 'n') return parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  if (type === 'v') return parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return v;
+};
+const showLoader = (el) => { el.innerHTML = '<div class="ldr">Carregando...</div>'; };
+const renderTab = (idx) => {
+  if (idx === 0) renderOverview();
+  else if (idx === 1) renderTop50();
+  else if (idx === 2) renderItemDetail();
+  else if (idx === 3) renderLoans();
+};
+const renderOverview = async () => {
+  const tc = document.getElementById('tc0');
+  showLoader(tc);
+  try {
+    const ent = await fetchAPI('overview_entradas', {p_unit: unidade, p_ano: ano, p_mes: mes});
+    const sai = await fetchAPI('overview_saidas', {p_unit: unidade, p_ano: ano, p_mes: mes});
+    const e_types = await fetchAPI('entry_types', {p_unit: unidade, p_ano: ano, p_mes: mes});
+    const s_types = await fetchAPI('exit_types', {p_unit: unidade, p_ano: ano, p_mes: mes});
+    tc.innerHTML = renderFilters() + `
+      <div class="d">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div><h3>Entradas</h3><div class="ct"><canvas id="ent-chart"></canvas></div></div>
+          <div><h3>Saidas</h3><div class="ct"><canvas id="sai-chart"></canvas></div></div>
+        </div>
+        <h3 style="margin-top:30px">Tipos</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <h4>Tipos de Entrada</h4>
+            <table class="t"><thead><tr><th>Tipo</th><th class="r">Qtde</th><th class="r">Valor</th></tr></thead><tbody>
+            ${e_types.map(t => `<tr><td>${t.tipo_mov}</td><td class="r">${fmt(t.q)}</td><td class="r">${fmt(t.v, 'v')}</td></tr>`).join('')}
+            </tbody></table>
+          </div>
+          <div>
+            <h4>Tipos de Saida</h4>
+            <table class="t"><thead><tr><th>Tipo</th><th class="r">Qtde</th><th class="r">Valor</th></tr></thead><tbody>
+            ${s_types.map(t => `<tr><td>${t.tipo_mov}</td><td class="r">${fmt(t.q)}</td><td class="r">${fmt(t.v, 'v')}</td></tr>`).join('')}
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+    `;
+    setTimeout(() => {
+      const chartColors = ['#2980b9', '#27ae60', '#e74c3c', '#f39c12', '#8e44ad', '#1abc9c'];
+      const entData = ent.map(r => ({label: r.periodo, q: r.eq, v: r.ev}));
+      const saiData = sai.map(r => ({label: r.periodo, q: r.sq, v: r.sv}));
+      new Chart(document.getElementById('ent-chart'), {
+        type: 'bar',
+        data: {
+          labels: entData.map(d => d.label),
+          datasets: [{label: 'Qtde', data: entData.map(d => d.q), backgroundColor: chartColors[0]},
+                     {label: 'Valor', data: entData.map(d => d.v/10000), backgroundColor: chartColors[1]}]
+        },
+        options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'bottom'}}}
+      });
+      new Chart(document.getElementById('sai-chart'), {
+        type: 'bar',
+        data: {
+          labels: saiData.map(d => d.label),
+          datasets: [{label: 'Qtde', data: saiData.map(d => d.q), backgroundColor: chartColors[2]},
+                     {label: 'Valor', data: saiData.map(d => d.v/10000), backgroundColor: chartColors[3]}]
+        },
+        options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'bottom'}}}
+      });
+    }, 0);
+  } catch (e) {
+    tc.innerHTML = `<div class="nd">Erro: ${e.message}</div>`;
+  }
+};
+const renderTop50 = async () => {
+  const tc = document.getElementById('tc1');
+  showLoader(tc);
+  try {
+    const items = await fetchAPI('top50_items');
+    tc.innerHTML = renderFilters() + `
+      <div class="d">
+        <table class="t"><thead><tr><th>Cod</th><th>Produto</th><th class="r">Entrada (Q)</th><th class="r">Entrada (V)</th><th class="r">Saida (Q)</th><th class="r">Saida (V)</th><th class="r">Total</th></tr></thead><tbody>
+        ${items.map(i => `<tr style="cursor:pointer" onclick="showItem(${i.c})"><td>${i.c}</td><td>${i.d}</td><td class="r">${fmt(i.eq)}</td><td class="r">${fmt(i.ev, 'v')}</td><td class="r">${fmt(i.sq)}</td><td class="r">${fmt(i.sv, 'v')}</td><td class="r"><strong>${fmt(i.t)}</strong></td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    `;
+  } catch (e) {
+    tc.innerHTML = `<div class="nd">Erro: ${e.message}</div>`;
+  }
+};
+const renderItemDetail = async () => {
+  const tc = document.getElementById('tc2');
+  tc.innerHTML = renderFilters() + `
+    <div class="d">
+      <div class="fg" style="margin-bottom:15px">
+        <label>Codigo do Produto</label>
+        <input type="number" id="item-cod" placeholder="Digite o codigo" style="max-width:200px">
+        <button class="btn" style="margin-top:5px" onclick="loadItem()">Carregar</button>
+      </div>
+      <div id="item-result"></div>
+    </div>
+  `;
+};
+const renderLoans = async () => {
+  const tc = document.getElementById('tc3');
+  showLoader(tc);
+  try {
+    const tc2 = document.getElementById('tc2');
+    const cod = parseInt(document.getElementById('item-cod')?.value || '0');
+    if (cod === 0) {
+      tc.innerHTML = renderFilters() + `
+        <div class="d">
+          <div class="fg" style="margin-bottom:15px">
+            <label>Codigo do Produto (Emprestimos)</label>
+            <input type="number" id="loan-cod" placeholder="Digite o codigo" style="max-width:200px">
+            <button class="btn" style="margin-top:5px" onclick="loadLoans()">Carregar</button>
+          </div>
+          <div id="loan-result"></div>
+        </div>
+      `;
+    } else {
+      await loadLoans();
+    }
+  } catch (e) {
+    tc.innerHTML = `<div class="nd">Erro: ${e.message}</div>`;
+  }
+};
+window.showItem = async (cod) => {
+  const tc2 = document.getElementById('tc2');
+  document.getElementById('item-cod').value = cod;
+  await loadItem();
+  document.querySelectorAll('.tab')[2].click();
+};
+window.loadItem = async () => {
+  const cod = parseInt(document.getElementById('item-cod').value);
+  const res = document.getElementById('item-result');
+  if (!cod) { res.innerHTML = '<div class="nd">Digite um codigo valido</div>'; return; }
+  showLoader(res);
+  try {
+    const kpis = await fetchAPI('item_kpis', {p_cod: cod, p_unit: unidade, p_ano: ano, p_mes: mes});
+    const detail = await fetchAPI('item_detail', {p_cod: cod, p_unit: unidade});
+    const by_unit = await fetchAPI('item_by_unit', {p_cod: cod});
+    const { eq, ev, sq, sv, acerto, ml_e, ml_s } = kpis;
+    res.innerHTML = `
+      <div style="margin-top:15px">
+        <h3>KPIs - Produto ${cod}</h3>
+        <div class="kr">
+          <div class="kp"><div class="kl">Entrada Qtde</div><div class="kv">${fmt(eq)}</div></div>
+          <div class="kp"><div class="kl">Entrada Valor</div><div class="kv">R$ ${fmt(ev, 'v')}</div></div>
+          <div class="kp"><div class="kl">Saida Qtde</div><div class="kv">${fmt(sq)}</div></div>
+          <div class="kp"><div class="kl">Saida Valor</div><div class="kv">R$ ${fmt(sv, 'v')}</div></div>
+          <div class="kp"><div class="kl">Acertos/Baixas</div><div class="kv">${fmt(acerto)}</div></div>
+        </div>
+        <h3 style="margin-top:20px">Evolucao Mensal</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div><canvas id="ml-e"></canvas></div>
+          <div><canvas id="ml-s"></canvas></div>
+        </div>
+        <h3 style="margin-top:20px">Detalhes</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <h4>Entradas</h4>
+            <table class="t"><thead><tr><th>Tipo</th><th>Origem</th><th class="r">Qtde</th><th class="r">Valor</th></tr></thead><tbody>
+            ${(detail.ent || []).map(d => `<tr><td>${d.tipo_mov}</td><td>${d.origem}</td><td class="r">${fmt(d.q)}</td><td class="r">${fmt(d.v, 'v')}</td></tr>`).join('')}
+            </tbody></table>
+          </div>
+          <div>
+            <h4>Saidas</h4>
+            <table class="t"><thead><tr><th>Tipo</th><th>Destino</th><th class="r">Qtde</th><th class="r">Valor</th></tr></thead><tbody>
+            ${(detail.sai || []).map(d => `<tr><td>${d.tipo_mov}</td><td>${d.destino}</td><td class="r">${fmt(d.q)}</td><td class="r">${fmt(d.v, 'v')}</td></tr>`).join('')}
+            </tbody></table>
+          </div>
+        </div>
+        <h3 style="margin-top:20px">Por Unidade</h3>
+        <table class="t"><thead><tr><th>Unidade</th><th class="r">Entrada</th><th class="r">Saida</th></tr></thead><tbody>
+        ${Object.entries(by_unit || {}).map(([unit, [eq, sq]]) => `<tr><td>${unit}</td><td class="r">${fmt(eq)}</td><td class="r">${fmt(sq)}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+    `;
+    setTimeout(() => {
+      const chartColors = ['#2980b9', '#27ae60'];
+      new Chart(document.getElementById('ml-e'), {
+        type: 'line',
+        data: {
+          labels: ml_e.map(m => m.p),
+          datasets: [{label: 'Qtde', data: ml_e.map(m => m.q), borderColor: chartColors[0], backgroundColor: chartColors[0] + '20', tension: 0.4}]
+        },
+        options: {responsive: true, maintainAspectRatio: true, plugins: {legend: {display: false}}}
+      });
+      new Chart(document.getElementById('ml-s'), {
+        type: 'line',
+        data: {
+          labels: ml_s.map(m => m.p),
+          datasets: [{label: 'Qtde', data: ml_s.map(m => m.q), borderColor: chartColors[1], backgroundColor: chartColors[1] + '20', tension: 0.4}]
+        },
+        options: {responsive: true, maintainAspectRatio: true, plugins: {legend: {display: false}}}
+      });
+    }, 0);
+  } catch (e) {
+    res.innerHTML = `<div class="nd">Erro: ${e.message}</div>`;
+  }
+};
+window.loadLoans = async () => {
+  const cod = parseInt(document.getElementById('loan-cod')?.value || '0');
+  const res = document.getElementById('loan-result');
+  if (!cod) { res.innerHTML = '<div class="nd">Digite um codigo valido</div>'; return; }
+  showLoader(res);
+  try {
+    const loans = await fetchAPI('loans', {p_cod: cod});
+    res.innerHTML = `
+      <h3 style="margin-top:15px">Emprestimos - Produto ${cod}</h3>
+      <table class="t"><thead><tr><th>De</th><th>Para</th><th class="r">Enviado (Q)</th><th class="r">Enviado (V)</th><th class="r">Recebido (Q)</th><th class="r">Recebido (V)</th><th class="r">Diferenca</th></tr></thead><tbody>
+      ${loans.map(l => `<tr><td>${l.orig}</td><td>${l.dest}</td><td class="r">${fmt(l.eq)}</td><td class="r">${fmt(l.ev, 'v')}</td><td class="r">${fmt(l.sq)}</td><td class="r">${fmt(l.sv, 'v')}</td><td class="r" style="background:${l.diff > 0 ? '#d4edda' : l.diff < 0 ? '#f8d7da' : '#fff'}">${fmt(l.diff)}</td></tr>`).join('')}
+      </tbody></table>
+    `;
+  } catch (e) {
+    res.innerHTML = `<div class="nd">Erro: ${e.message}</div>`;
+  }
+};
+const renderFilters = () => `
+  <div class="flt">
+    <div class="fg"><label>Unidade</label><input type="text" id="f-unit" placeholder="Todos" value="${unidade}" onchange="unidade=this.value;renderTab(0)"></div>
+    <div class="fg"><label>Ano</label><input type="text" id="f-ano" placeholder="Todos" value="${ano}" onchange="ano=this.value;renderTab(0)"></div>
+    <div class="fg"><label>Mes</label><input type="text" id="f-mes" placeholder="Todos" value="${mes}" onchange="mes=this.value;renderTab(0)"></div>
+  </div>
+`;
+document.querySelectorAll('.tab').forEach((tab, idx) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tc').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`tc${idx}`).classList.add('active');
+    renderTab(idx);
+  });
+});
+renderTab(0);
+</script>
+</body>
+</html>
