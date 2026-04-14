@@ -73,6 +73,8 @@ tr:hover{background:#f8f9fa}tr.ck{cursor:pointer}tr.ck:hover{background:#eaf2f8}
 .day-sai{padding:3px 12px 3px 24px;font-size:11px;border-left:3px solid #e74c3c;margin-bottom:1px;display:flex;justify-content:space-between;background:#fff9f9}
 .day-emp{border-left-color:#f39c12;background:#fffdf5}
 .day-trf{border-left-color:#2980b9;background:#f5f9ff}
+.day-trf-int{border-left-color:#95a5a6;background:#f5f5f5;opacity:.65}
+.day-trf-int .nm::after{content:' [MOV. INTERNA]';color:#95a5a6;font-size:9px;font-weight:700}
 .day-acj{border-left-color:#8e44ad;background:#fdf5ff}
 .day-row{display:flex;justify-content:space-between;align-items:center;width:100%}
 .day-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;font-size:11px}
@@ -480,8 +482,8 @@ async function applyE(){
         Object.keys(eByT).sort().forEach(function(tipo){var tDiv=document.createElement('div');tDiv.className='day-tipo';tDiv.textContent='ENTRADA - '+tipo;mBody.appendChild(tDiv);
           eByT[tipo].forEach(function(r){var row=document.createElement('div');var cls='day-ent';if(r.tipo.indexOf('EMPREST')>=0)cls+=' day-emp';else if(r.tipo.indexOf('TRANSF')>=0)cls+=' day-trf';row.className=cls;row.innerHTML='<div class="day-row"><span class="nm">'+r.orig+(r.unit?' ['+r.unit+']':'')+'</span><span class="vl">'+nf(r.ent)+' un | '+cf(r.val)+'</span></div>';mBody.appendChild(row);});});
         var sByT={};saiR.forEach(function(r){if(!sByT[r.tipo])sByT[r.tipo]=[];sByT[r.tipo].push(r);});
-        Object.keys(sByT).sort().forEach(function(tipo){var tDiv=document.createElement('div');tDiv.className='day-tipo';tDiv.textContent='SAIDA - '+tipo;mBody.appendChild(tDiv);
-          sByT[tipo].forEach(function(r){var row=document.createElement('div');var cls='day-sai';if(r.tipo.indexOf('EMPREST')>=0)cls+=' day-emp';else if(r.tipo.indexOf('ACERTO')>=0||r.tipo.indexOf('BAIXA')>=0)cls+=' day-acj';else if(r.tipo.indexOf('TRANSF')>=0)cls+=' day-trf';row.className=cls;row.innerHTML='<div class="day-row"><span class="nm">'+r.orig+(r.unit?' ['+r.unit+']':'')+'</span><span class="vl">'+nf(r.sai)+' un | '+cf(r.val)+'</span></div>';mBody.appendChild(row);});});
+        Object.keys(sByT).sort().forEach(function(tipo){var tDiv=document.createElement('div');tDiv.className='day-tipo';var isTransfEst=(tipo==='TRANSF. ESTOQUE');tDiv.textContent='SAIDA - '+tipo+(isTransfEst?' (mov. interna - nao altera KPIs)':'');if(isTransfEst)tDiv.style.color='#95a5a6';mBody.appendChild(tDiv);
+          sByT[tipo].forEach(function(r){var row=document.createElement('div');var cls='day-sai';var isTE=(r.tipo==='TRANSF. ESTOQUE');if(isTE)cls='day-sai day-trf-int';else if(r.tipo.indexOf('EMPREST')>=0)cls+=' day-emp';else if(r.tipo.indexOf('ACERTO')>=0||r.tipo.indexOf('BAIXA')>=0)cls+=' day-acj';else if(r.tipo.indexOf('TRANSF')>=0)cls+=' day-trf';row.className=cls;row.innerHTML='<div class="day-row"><span class="nm">'+r.orig+(r.unit?' ['+r.unit+']':'')+'</span><span class="vl">'+nf(r.sai)+' un | '+cf(r.val)+'</span></div>';mBody.appendChild(row);});});
       });
       yBody.appendChild(mHdr);yBody.appendChild(mBody);
     });
